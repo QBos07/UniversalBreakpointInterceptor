@@ -27,6 +27,11 @@ using S = UBI::Singleton;
     __asm__ volatile ("");
 }
 
+[[gnu::noinline]] void fun3() {
+    std::printf("3!\n");
+    __asm__ volatile ("");
+}
+
 void handler_before(UBI::HandlerContext &) {
     std::printf("Hello");
 }
@@ -43,22 +48,31 @@ int main() {
     /*S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
                                       UBI::PCBreakpoint::BeforeExecution, 0, handler_before);
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
+                                      UBI::PCBreakpoint::BeforeExecution, 0, handler_before);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
                                       UBI::PCBreakpoint::BeforeExecution, 0, handler_before);*/
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
                                       UBI::PCBreakpoint::AfterExecution, 0, handler_after);
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
                                       UBI::PCBreakpoint::AfterExecution, 0, handler_after);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
+                                      UBI::PCBreakpoint::AfterExecution, 0, handler_after);
     /*S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
                                       UBI::PCBreakpoint::BeforeExecution, 1, other_handler);
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
+                                      UBI::PCBreakpoint::BeforeExecution, 1, other_handler);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
                                       UBI::PCBreakpoint::BeforeExecution, 1, other_handler);*/
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
                                       UBI::PCBreakpoint::AfterExecution, 1, other_handler);
     S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
                                       UBI::PCBreakpoint::AfterExecution, 1, other_handler);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
+                                      UBI::PCBreakpoint::AfterExecution, 1, other_handler);
     S::instance.enable();
     fun1();
     fun2();
+    fun3();
     S::instance.~Singleton();
     std::fflush(stdout);
     Debug_WaitKey();

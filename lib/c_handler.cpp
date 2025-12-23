@@ -58,15 +58,15 @@ bool ubi_c_handler(saved_regs *regs [[maybe_unused]]) {
         return false;
     }
 
-    auto &handler_array = mfr.mf0 ? S::instance.computed_before_array : S::instance.computed_after_array;
+    const auto &handler_array = mfr.mf0 ? S::instance.computed_channel0_array : S::instance.computed_channel1_array;
 
     auto [first, last] = std::equal_range(
         handler_array.begin(),
         handler_array.end(),
-        std::make_pair(reinterpret_cast<void *>(regs->spc), nullptr), // handler value unused
+        std::make_pair(reinterpret_cast<volatile void *>(regs->spc), nullptr), // handler value unused
         [](const auto &a, const auto &b) { return a.first < b.first; }
     );
-    const auto handlers_view = std::ranges::subrange(first, last) | std::views::transform([](const auto &entry) {
+    auto handlers_view = std::ranges::subrange(first, last) | std::views::transform([](const auto &entry) {
         return entry.second;
     });
 

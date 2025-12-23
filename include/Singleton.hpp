@@ -1,5 +1,5 @@
 #pragma once
-#include <map>
+#include <cstdint>
 #include <vector>
 
 #include "HandlerContext.hpp"
@@ -18,10 +18,11 @@ namespace UBI {
 
         bool active = false;
 
-        std::vector<std::pair<void *, handler_function>> computed_before_array;
-        decltype(computed_before_array) computed_after_array;
+        std::vector<std::pair<volatile void *, handler_function>> computed_channel0_array;
+        decltype(computed_channel0_array) computed_channel1_array;
 
-        void recompute_arrays();
+        void recompute_arrays(volatile void *car0, std::uintptr_t camr0, volatile void *car1, std::uintptr_t camr1);
+        void handle_single_target();
 
     public:
         Singleton(const Singleton&) = delete;
@@ -31,7 +32,7 @@ namespace UBI {
         static Singleton& instance;
 
         // address to break on, expected spc, execution position, priority (negative to positive; equal unspecified), handler
-        std::vector<std::tuple<void *, void *, PCBreakpoint, int, handler_function>> handlers;
+        std::vector<std::tuple<volatile void *, volatile void *, PCBreakpoint, int, handler_function>> handlers;
 
         void recompute_registers();
 

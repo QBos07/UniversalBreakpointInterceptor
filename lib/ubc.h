@@ -168,7 +168,7 @@ typedef regstruct {
 ubc_cbr0_t;
 
 __attribute__((weak)) void
-ubc_setDBR(void *fun) {
+ubc_setDBR(volatile void *fun) {
   __asm__ volatile("ldc %0,dbr" : : "r"(fun));
 }
 

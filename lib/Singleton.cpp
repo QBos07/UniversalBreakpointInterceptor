@@ -1,13 +1,13 @@
 #include "Singleton.hpp"
 
 #include <cstddef>
-#include <cstdint>
-//#include <cstdio>
+#include <bit>
 #include <new>
 #include <ranges>
 #include <algorithm>
 //#include <cinttypes>
 #include <numeric>
+#include <set>
 
 #include "helper.hpp"
 #include "ubc.h"
@@ -48,42 +48,131 @@ Singleton::~Singleton() {
     disable();
 }
 
-void Singleton::recompute_arrays() {
+void Singleton::recompute_arrays(volatile void *car0, std::uintptr_t camr0, volatile void *car1, std::uintptr_t camr1) {
     std::vector<std::size_t> indexes(handlers.size());
-    std::iota(indexes.begin(), indexes.end(), 0z); // create a second indices array
+    std::iota(indexes.begin(), indexes.end(), 0zu); // create a second indices array
 
     std::ranges::sort(indexes, std::less{}, [&handlers = handlers](const auto i) {
         const auto [addr, spc, bp, pri, handler] = handlers[i];
         return std::make_pair(spc, pri);
     });
 
-    auto make_computed = [&handlers = handlers, &indexes](PCBreakpoint which) {
+    const auto make_filtered = [&handlers = handlers, &indexes](ubc_car_t car, ubc_camr_t camr) {
         return indexes |
-               std::views::filter([&handlers = handlers, which](auto const i) {
+               std::views::filter([&handlers = handlers, car, camr](auto const i) {
                    // ignore elements not asked for
                    const auto [addr, spc, bp, pri, handler] = handlers[i];
-                   return bp == which;
+                   return (reinterpret_cast<std::uintptr_t>(addr) & ~camr) == (
+                              reinterpret_cast<std::uintptr_t>(car) & ~camr);
                }) | std::views::transform([&handlers = handlers](auto const i) {
-                   // only save the needed parts
                    const auto [addr, spc, bp, pri, handler] = handlers[i];
                    return std::make_pair(spc, handler);
-               });
+               });;
     };
 
     // materialize
-    computed_before_array = {std::from_range, make_computed(PCBreakpoint::BeforeExecution)};
+    computed_channel0_array = {std::from_range, make_filtered(car0, camr0)};
+    computed_channel1_array = {std::from_range, make_filtered(car1, camr1)};
 
-    /*std::printf("Before: (%zu)\n", computed_before_array.size());
-    for (auto const [addr, handler]: computed_before_array) {
-        std::printf("%p - %p\n", addr, reinterpret_cast<void *>(handler));
+    /*std::printf("CH0: (%zu)\n", computed_channel0_array.size());
+    for (const auto &[spc, handler]: computed_channel0_array) {
+        std::printf(" %p - %p\n", spc, reinterpret_cast<void *>(handler));
+    }
+    std::printf("CH1: (%zu)\n", computed_channel0_array.size());
+    for (const auto &[spc, handler]: computed_channel1_array) {
+        std::printf(" %p - %p\n", spc, reinterpret_cast<void *>(handler));
     }*/
+}
 
-    computed_after_array = {std::from_range, make_computed(PCBreakpoint::AfterExecution)};
+template<std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_value_t<R>, volatile void *>
+static std::pair<std::pair<ubc_car_t, ubc_camr_t>, std::pair<ubc_car_t, ubc_camr_t> > compute_registers_both(
+    const R &before_addresses, const R &after_addresses) {
+    const auto get_non_uniform_bits = []<std::ranges::input_range V>(V view) -> std::uintptr_t {
+        return std::transform_reduce(std::next(view.begin()), view.end(),
+                                     std::uintptr_t{0},
+                                     std::bit_or{},
+                                     [f = reinterpret_cast<std::uintptr_t>(*view.begin())](volatile void *p) {
+                                         return f ^ reinterpret_cast<std::uintptr_t>(p);
+                                     });
+    };
 
-    /*std::printf("After: (%zu)\n", computed_after_array.size());
-    for (auto const [addr, handler]: computed_after_array) {
-        std::printf("%p - %p\n", addr, reinterpret_cast<void *>(handler));
-    }*/
+    AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_BEFORE_EXECUTION, .bie = true});
+    AS_STRUCT_SET(UBC_CRR1, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_AFTER_EXECUTIOM, .bie = true});
+
+    return std::make_pair(std::make_pair(*before_addresses.begin(), get_non_uniform_bits(before_addresses)),
+                          std::make_pair(*after_addresses.begin(), get_non_uniform_bits(after_addresses)));
+}
+
+template<std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_value_t<R>, volatile void *>
+static std::pair<std::pair<ubc_car_t, ubc_camr_t>, std::pair<ubc_car_t, ubc_camr_t> > compute_registers_only_one(
+    const R &addresses) {
+    auto uintptr_addresses = std::vector{
+        std::from_range,
+        addresses | std::views::transform([](const auto val) { return reinterpret_cast<std::uintptr_t>(val); })
+    };
+
+    const auto FULL = 1zu << uintptr_addresses.size();
+
+    std::vector<ubc_camr_t> precomputed_and(FULL);
+    std::vector<ubc_camr_t> precomputed_or(FULL);
+
+    precomputed_or[0] = 0;
+    precomputed_and[0] = ~precomputed_or[0];
+
+    for (auto mask = decltype(FULL){1}; mask < FULL; ++mask) {
+        auto bit = std::countr_zero(mask);
+        auto prev = mask & ~(decltype(mask){1} << bit);
+
+        precomputed_and[mask] = precomputed_and[prev] & uintptr_addresses[bit];
+        precomputed_or[mask] = precomputed_or[prev] | uintptr_addresses[bit];
+    }
+
+    auto view = std::views::iota(decltype(FULL){1}, FULL) | std::views::transform(
+                    [FULL, &precomputed_and, &precomputed_or](const auto mask) {
+                        auto comp = (FULL - 1) ^ mask;
+
+                        auto camr0 = precomputed_and[mask] ^ precomputed_or[mask];
+                        auto camr1 = precomputed_and[comp] ^ precomputed_or[comp];
+
+                        auto car0 = reinterpret_cast<ubc_car_t>(precomputed_and[mask]);
+                        auto car1 = reinterpret_cast<ubc_car_t>(precomputed_and[comp]);
+
+                        auto cost = std::popcount(camr0) + std::popcount(camr1);
+
+                        return std::make_pair(cost, std::make_pair(std::make_pair(car0, camr0),
+                                                                   std::make_pair(car1, camr1)));
+                    });
+
+    auto min = std::ranges::min(view, {}, [](const auto &val) { return val.first; });
+
+    return min.second;
+}
+
+void Singleton::handle_single_target() {
+    const auto [addr, spc, bp, pri, handler] = handlers.front();
+    *UBC_CAR0 = addr;
+    *UBC_CAMR0 = 0;
+    computed_channel0_array = {
+        std::from_range, handlers | std::views::transform([spc](const auto &val) {
+            const auto [addr, spc_val, bp, pri, handler] = val;
+            return std::make_pair(spc, handler);
+        })
+    };
+    computed_channel1_array = {};
+    switch (bp) {
+        case PCBreakpoint::BeforeExecution:
+            AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_BEFORE_EXECUTION, .bie = true});
+            break;
+        case PCBreakpoint::AfterExecution:
+            AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_AFTER_EXECUTIOM, .bie = true});
+            break;
+    }
+
+    AS_STRUCT_SET(UBC_CBR0, {.id = ubc_cbr0_t::UBC_CBR0_ID_INSTRUCTION_FETCH_CYCLE, .ce = true});
+
+    dummy_icbi();
 }
 
 void Singleton::recompute_registers() {
@@ -91,9 +180,9 @@ void Singleton::recompute_registers() {
     AS_STRUCT_SET(UBC_CBR1, {.id = ubc_cbr1_t::UBC_CBR1_ID_INSTRUCTION_FETCH_CYCLE, .ce = false});
     dummy_icbi();
 
-    recompute_arrays();
+    if (handlers.empty()) return;
 
-    auto make_view = [&handlers = handlers](PCBreakpoint which) {
+    const auto make_view = [&handlers = handlers](PCBreakpoint which) {
         return handlers
                | std::views::filter([which](auto const &val) {
                    const auto [addr, spc, bp, pri, handler] = val;
@@ -105,32 +194,42 @@ void Singleton::recompute_registers() {
                });
     };
 
-    auto get_non_uniform_bits = []<std::ranges::input_range R>(R view) -> std::uintptr_t requires std::convertible_to<
-                std::ranges::range_value_t<R>, void *> {
-        return view.empty()
-                   ? 0
-                   : std::transform_reduce(std::next(view.begin()), view.end(),
-                                           std::uintptr_t{0},
-                                           std::bit_or{},
-                                           [f = reinterpret_cast<std::uintptr_t>(view.front())](void *p) {
-                                               return f ^ reinterpret_cast<std::uintptr_t>(p);
-                                           });
-    };
+    auto before_addresses = make_view(PCBreakpoint::BeforeExecution) | std::ranges::to<std::set>();
+    auto after_addresses = make_view(PCBreakpoint::AfterExecution) | std::ranges::to<std::set>();
 
-    auto before_addresses = make_view(PCBreakpoint::BeforeExecution);
-    auto after_addresses = make_view(PCBreakpoint::AfterExecution);
+    if (before_addresses.size() + after_addresses.size() == 1) {
+        handle_single_target();
+        return;
+    }
 
-    *UBC_CAR0 = before_addresses.empty() ? nullptr : before_addresses.front();
-    *UBC_CAMR0 = get_non_uniform_bits(before_addresses);
+    const auto [channel0, channel1] = [&before_addresses, &after_addresses] {
+        if (!before_addresses.empty() && after_addresses.empty()) {
+            AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_BEFORE_EXECUTION, .bie = true});
+            AS_STRUCT_SET(UBC_CRR1, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_BEFORE_EXECUTION, .bie = true});
 
-    *UBC_CAR1 = after_addresses.empty() ? nullptr : after_addresses.front();
-    *UBC_CAMR1 = get_non_uniform_bits(after_addresses);
+            return compute_registers_only_one(before_addresses);
+        }
 
-    //std::printf("Before CAR: %p CAMR: 0x%08" PRIx32 "\nAfter  CAR: %p CAMR: 0x%08" PRIx32 "\n", *UBC_CAR0, *UBC_CAMR0,
-    //            *UBC_CAR1, *UBC_CAMR1);
+        if (before_addresses.empty() && !after_addresses.empty()) {
+            AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_AFTER_EXECUTIOM, .bie = true});
+            AS_STRUCT_SET(UBC_CRR1, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_AFTER_EXECUTIOM, .bie = true});
 
-    AS_STRUCT_SET(UBC_CRR0, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_BEFORE_EXECUTION, .bie = true});
-    AS_STRUCT_SET(UBC_CRR1, {.pcb = ubc_crr_t::UBC_CCR_PCB_PC_BREAK_AFTER_EXECUTIOM, .bie = true});
+            return compute_registers_only_one(after_addresses);
+        }
+
+        return compute_registers_both(before_addresses, after_addresses);
+    }();
+
+    const auto [car0, camr0] = channel0;
+    const auto [car1, camr1] = channel1;
+
+    //std::printf("CAR0: %p, CAMR0: 0x%08" PRIx32 "\nCAR1: %p, CAMR1: 0x%08" PRIx32 "\n", car0, camr0, car1, camr1);
+    recompute_arrays(car0, camr0, car1, camr1);
+
+    *UBC_CAR0 = car0;
+    *UBC_CAR1 = car1;
+    *UBC_CAMR0 = camr0;
+    *UBC_CAMR1 = camr1;
 
     AS_STRUCT_SET(UBC_CBR0, {.id = ubc_cbr0_t::UBC_CBR0_ID_INSTRUCTION_FETCH_CYCLE, .ce = true});
     AS_STRUCT_SET(UBC_CBR1, {.id = ubc_cbr1_t::UBC_CBR1_ID_INSTRUCTION_FETCH_CYCLE, .ce = true});

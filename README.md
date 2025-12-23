@@ -22,6 +22,5 @@ handler will result in a soft lock. Sticking to one type of breakpoint should en
 - HandlerContext is a stub
   - Because of this you can not change `spc` and therefore can not use `BeforeExecution` points most of the time.
 - Performance might be bad.
-  - Single breakpoint type optimization is missing.
 - Binaries are big.
 - Nested exceptions are forced.
