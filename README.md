@@ -1,25 +1,27 @@
-# HHK3template
-A modern template for HHK3!
+# Universal Breakpoint Interceptor (UBI)
+UBI is a library designed to automaticly configure the UBC (User Break Controller) of SH4A cpus.
+It tries to make setting more than 2 breakpoint simpler while allowing to execute ones own code and giving powerfull
+tools to change the state at interception point. Nested exceptions can be conditionally allowed.
 
-Checkout the other branches for more variants.
+## Dependencies
+- libstdcxx (C++ 23 compatible)
+- libc
 
-## How to Setup
-1. Clone to project
-2. Enter the devcontainer
-3. `make compile_commands.json` or use the vscode task
-4. Restart clangd (eg. via CRTL+SHIFT+P in vscode)
+`libubi.a` is build as a fat LTO archive. A gint build will be detected using a weak definition of `ubc_setDBR` at link
+time.
 
-## How to build
-```sh
-make -j
-```
-Or execute the default vscode build task with CRTL+SHIFT+B
+## Usage
+Look in the example directory for a working test of UBI's capabilities. Most interactions with the library are trougth
+`UBI::Singleton::instance`. The instance will be created with the program's startup (residing in the data section). You
+will need to choose when it is appropriate to call the destructor. Changes to `handlers` is applied on a call to
+`enable()` or `recompute_registers()`. Not changing `SPC` or disabling the point in any way in a `BeforeExecution`
+handler will result in a soft lock. Sticking to one type of breakpoint should enhance performance.
 
-## How to run
-Copy `dist/CPapp.hh3` to the root of the calculator when connected in usb storage mode and then select and run from the launcher.
-
-## How to change the file name (recommended)
-Open the Makefile and adjust this line to what you want:
-```Makefile
-APP_ELF := $(OUTDIR)/<your_file_name>.elf
-```
+### This software is currently in aplha
+- A C interface along some UX improvements are yet to come.
+- HandlerContext is a stub
+  - Because of this you can not change `spc` and therefore can not use `BeforeExecution` points most of the time.
+- Performance might be bad.
+  - Single breakpoint type optimization is missing.
+- Binaries are big.
+- Nested exceptions are forced.
