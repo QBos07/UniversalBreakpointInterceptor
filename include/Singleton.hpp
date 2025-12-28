@@ -11,6 +11,36 @@ namespace UBI {
         AfterExecution = true
     };
 
+    class Breakpoint {
+    public:
+        volatile void *address;
+        PCBreakpoint pc_breakpoint = PCBreakpoint::AfterExecution;
+        volatile void *spc = pc_breakpoint == PCBreakpoint::AfterExecution
+                                 ? static_cast<volatile std::uint16_t *>(address) + 1
+                                 : address;
+        //negative to positive; equal unspecified
+        handler_function handler;
+        int priority = 0;
+
+        Breakpoint(volatile void *address, handler_function handler, int priority) noexcept;
+
+        Breakpoint(volatile void *address, volatile void *spc, handler_function handler, int priority) noexcept;
+
+        Breakpoint(volatile void *address, PCBreakpoint pc_breakpoint, handler_function handler, int priority) noexcept;
+
+        Breakpoint(volatile void *address, PCBreakpoint pc_breakpoint, volatile void *spc, handler_function handler,
+                   int priority) noexcept;
+
+        Breakpoint(volatile void *address, handler_function handler) noexcept;
+
+        Breakpoint(volatile void *address, volatile void *spc, handler_function handler) noexcept;
+
+        Breakpoint(volatile void *address, PCBreakpoint pc_breakpoint, handler_function handler) noexcept;
+
+        Breakpoint(volatile void *address, PCBreakpoint pc_breakpoint, volatile void *spc,
+                   handler_function handler) noexcept;
+    };
+
     class Singleton {
         friend bool ::ubi_c_handler(saved_regs *regs);
 
@@ -18,25 +48,29 @@ namespace UBI {
 
         bool active = false;
 
-        std::vector<std::pair<volatile void *, handler_function>> computed_channel0_array;
+        std::vector<std::pair<volatile void *, handler_function> > computed_channel0_array;
         decltype(computed_channel0_array) computed_channel1_array;
 
-        void recompute_arrays(volatile void *car0, std::uintptr_t camr0, volatile void *car1, std::uintptr_t camr1);
-        void handle_single_target();
+        void recomputeArrays(volatile void *car0, std::uintptr_t camr0, volatile void *car1, std::uintptr_t camr1);
+
+        void handleSingleTarget();
 
     public:
-        Singleton(const Singleton&) = delete;
-        Singleton& operator=(const Singleton&) = delete;
+        Singleton(const Singleton &) = delete;
+
+        Singleton &operator=(const Singleton &) = delete;
+
         ~Singleton();
 
-        static Singleton& instance;
+        static Singleton &instance;
 
         // address to break on, expected spc, execution position, priority (negative to positive; equal unspecified), handler
-        std::vector<std::tuple<volatile void *, volatile void *, PCBreakpoint, int, handler_function>> handlers;
+        std::vector<Breakpoint> handlers;
 
-        void recompute_registers();
+        void recomputeRegisters();
 
         void enable();
+
         void disable();
     };
 }

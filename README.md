@@ -17,10 +17,7 @@ will need to choose when it is appropriate to call the destructor. Changes to `h
 `enable()` or `recompute_registers()`. Not changing `SPC` or disabling the point in any way in a `BeforeExecution`
 handler will result in a soft lock. Sticking to one type of breakpoint should enhance performance.
 
-### This software is currently in aplha
-- A C interface along some UX improvements are yet to come.
-- HandlerContext is a stub
-  - Because of this you can not change `spc` and therefore can not use `BeforeExecution` points most of the time.
+### This software is currently in aplha/beta
+- A C interface is yet to come.
 - Performance might be bad.
 - Binaries are big.
-- Nested exceptions are forced.

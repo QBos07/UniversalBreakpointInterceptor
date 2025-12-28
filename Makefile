@@ -14,7 +14,7 @@ DEPFLAGS=-MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 WARNINGS=-Wall -Wextra -pedantic -Werror -pedantic-errors
 INCLUDES=-I$(SDK_DIR)/include -I$(INCLUDEDIR)
 DEFINES=
-FUNCTION_FLAGS=-ffunction-sections -fdata-sections -gdwarf-5 -O2
+FUNCTION_FLAGS=-ffunction-sections -fdata-sections -gdwarf-5 -O2 -pipe -flto=auto -ffat-lto-objects -fno-builtin
 COMMON_FLAGS=$(FUNCTION_FLAGS) $(INCLUDES) $(WARNINGS) $(DEFINES)
 
 CC:=sh4a_nofpueb-elf-gcc
@@ -50,6 +50,8 @@ LIB_OBJECTS := $(addprefix $(BUILDDIR)/,$(LIB_AS_SOURCES:.S=.o)) \
 EXE_OBJECTS := $(addprefix $(BUILDDIR)/,$(EXE_AS_SOURCES:.S=.o)) \
 	$(addprefix $(BUILDDIR)/,$(EXE_CC_SOURCES:.c=.o)) \
 	$(addprefix $(BUILDDIR)/,$(EXE_CXX_SOURCES:.cpp=.o))
+
+OBJECTS := $(LIB_OBJECTS) $(EXE_OBJECTS)
 
 DEPFILES := $(OBJECTS:$(BUILDDIR)/%.o=$(DEPDIR)/%.d)
 
@@ -93,6 +95,6 @@ compile_commands.json:
 	$(MAKE) clean
 	bear -- sh -c "$(MAKE) --keep-going all || exit 0"
 
-.PHONY: elf hh3 all clean compile_commands.json
+.PHONY: elf hh3 all lib clean compile_commands.json
 
 -include $(DEPFILES)

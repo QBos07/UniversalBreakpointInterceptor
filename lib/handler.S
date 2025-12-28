@@ -7,6 +7,12 @@
 .type CSYM(ubi_handler), @function
 .align 2
 CSYM(ubi_handler):
+    mov.l .L2, r15
+    tst r15, r15
+    bt .L3
+    stc sgr, r15
+.L3:
+    stc.l sgr, @-r15
     mov.l r0, @-r15
     mov.l r1, @-r15
     mov.l r2, @-r15
@@ -68,10 +74,11 @@ CSYM(ubi_handler):
     mov.l @r15+, r10
     mov.l @r15+, r9
     mov.l @r15+, r8
-    bf .L2
-    rte
+    bf .L4
     add #32, r15
-.L2:
+    rte
+    mov.l @r15, r15
+.L4:
     ldc.l @r15+, r7_bank
     ldc.l @r15+, r6_bank
     ldc.l @r15+, r5_bank
@@ -81,8 +88,10 @@ CSYM(ubi_handler):
     ldc.l @r15+, r1_bank
     ldc.l @r15+, r0_bank
     rte
-    nop
+    mov.l @r15, r15
 .align 4
 .L1:
     .long CSYM(ubi_c_handler)
+.L2:
+    .long CSYM(ubi_debug_stack)
 .size CSYM(ubi_handler), .-CSYM(ubi_handler)

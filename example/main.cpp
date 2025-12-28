@@ -32,48 +32,42 @@ using S = UBI::Singleton;
     __asm__ volatile ("");
 }
 
-void handler_before(UBI::HandlerContext &) {
+void handler_after(UBI::HandlerContext &ctx) {
+    ctx.allowNestedInterrupts();
+    fun3();
     std::printf("Hello");
+}
+
+void handler2(UBI::HandlerContext &) {
+    std::printf("Nested!");
 }
 
 void other_handler(UBI::HandlerContext &) {
     std::printf(" ");
 }
 
-void handler_after(UBI::HandlerContext &) {
-    std::printf("World");
+void handler_before(UBI::HandlerContext &ctx) {
+    std::printf("World\n");
+    ctx.registers.PC = ctx.registers.PR.as<void *>();
 }
 
-int main() {
-    /*S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 0, handler_before);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 0, handler_before);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 0, handler_before);*/
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 0, handler_after);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 0, handler_after);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 0, handler_after);
-    /*S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 1, other_handler);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 1, other_handler);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
-                                      UBI::PCBreakpoint::BeforeExecution, 1, other_handler);*/
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), reinterpret_cast<std::uint16_t *>(fun1) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 1, other_handler);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), reinterpret_cast<std::uint16_t *>(fun2) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 1, other_handler);
-    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), reinterpret_cast<std::uint16_t *>(fun3) + 1,
-                                      UBI::PCBreakpoint::AfterExecution, 1, other_handler);
+[[gnu::used]] int main() {
+    auto stack = new std::byte[0x1000]; //optional
+    ubi_debug_stack = stack + 0x1000 - sizeof(int);
+    /*S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), handler_after);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), handler_after);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun1), other_handler, 1);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun2), other_handler, 1);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), handler2);
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), other_handler, 1);*/
+    S::instance.handlers.emplace_back(reinterpret_cast<void *>(fun3), UBI::PCBreakpoint::BeforeExecution,
+                                      handler_before);
     S::instance.enable();
     fun1();
     fun2();
     fun3();
     S::instance.~Singleton();
+    delete[] stack;
     std::fflush(stdout);
     Debug_WaitKey();
     return 0;
