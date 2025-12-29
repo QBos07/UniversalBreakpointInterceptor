@@ -19,6 +19,8 @@ alignas(Singleton) std::byte singleton_storage[sizeof(Singleton)];
 Singleton &Singleton::instance = *new(singleton_storage) Singleton;
 
 void Singleton::enable() {
+    if (active) return;
+
     AS_STRUCT_SET(UBC_CBR0, {.id = ubc_cbr0_t::UBC_CBR0_ID_INSTRUCTION_FETCH_CYCLE, .ce = false});
     AS_STRUCT_SET(UBC_CBR1, {.id = ubc_cbr1_t::UBC_CBR1_ID_INSTRUCTION_FETCH_CYCLE, .ce = false});
     dummy_icbi();
@@ -28,9 +30,9 @@ void Singleton::enable() {
 
     AS_STRUCT_SET(UBC_CCMFR, {false, false});
 
-    recomputeRegisters();
-
     active = true;
+
+    recomputeRegisters();
 }
 
 void Singleton::disable() {
@@ -176,6 +178,12 @@ void Singleton::handleSingleTarget() {
 }
 
 void Singleton::recomputeRegisters() {
+    if (!active) {
+        computed_channel0_array = {};
+        computed_channel1_array = {};
+        return;
+    }
+
     AS_STRUCT_SET(UBC_CBR0, {.id = ubc_cbr0_t::UBC_CBR0_ID_INSTRUCTION_FETCH_CYCLE, .ce = false});
     AS_STRUCT_SET(UBC_CBR1, {.id = ubc_cbr1_t::UBC_CBR1_ID_INSTRUCTION_FETCH_CYCLE, .ce = false});
     dummy_icbi();

@@ -18,8 +18,8 @@ namespace UBI {
         volatile void *spc = pc_breakpoint == PCBreakpoint::AfterExecution
                                  ? static_cast<volatile std::uint16_t *>(address) + 1
                                  : address;
-        //negative to positive; equal unspecified
         handler_function handler;
+        //negative to positive; equal unspecified
         int priority = 0;
 
         Breakpoint(volatile void *address, handler_function handler, int priority) noexcept;
@@ -64,7 +64,6 @@ namespace UBI {
 
         static Singleton &instance;
 
-        // address to break on, expected spc, execution position, priority (negative to positive; equal unspecified), handler
         std::vector<Breakpoint> handlers;
 
         void recomputeRegisters();
