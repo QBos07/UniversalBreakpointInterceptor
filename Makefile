@@ -57,6 +57,7 @@ DEPFILES := $(OBJECTS:$(BUILDDIR)/%.o=$(DEPDIR)/%.d)
 
 hh3: $(APP_HH3) Makefile
 elf: $(APP_ELF) Makefile
+lib: $(LIB_ARCHIVE) Makefile
 
 all: lib elf hh3
 .DEFAULT_GOAL := all
