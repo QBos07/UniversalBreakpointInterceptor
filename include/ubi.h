@@ -55,6 +55,8 @@ void ubi_handlers_clear();
 
 void handler_context_allow_nested_interrupts(HandlerContext *ctx);
 
+void handler_context_disallow_nested_interrupts(HandlerContext *ctx);
+
 void register_free(const Register *reg);
 
 // 0-15 changed

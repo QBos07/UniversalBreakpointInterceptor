@@ -75,6 +75,10 @@ void handler_context_allow_nested_interrupts(HandlerContext *const ctx) {
     reinterpret_cast<UBI::HandlerContext *>(ctx)->allowNestedInterrupts();
 }
 
+void handler_context_disallow_nested_interrupts(HandlerContext *const ctx) {
+    reinterpret_cast<UBI::HandlerContext *>(ctx)->disallowNestedInterrupts();
+}
+
 Register *handler_context_get_register(HandlerContext *const ctx, const size_t number) {
     return new Register(reinterpret_cast<UBI::HandlerContext *>(ctx)->R[number]);
 }

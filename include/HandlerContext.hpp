@@ -233,6 +233,7 @@ namespace UBI {
         };
 
         void allowNestedInterrupts() noexcept;
+        void disallowNestedInterrupts() noexcept;
     };
 
     typedef void (*handler_function)(HandlerContext &);

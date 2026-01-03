@@ -93,3 +93,30 @@ void HandlerContext::allowNestedInterrupts() noexcept {
 
     switch_interrupt_block();
 }
+
+void HandlerContext::disallowNestedInterrupts() noexcept {
+    if (!nesting_active) return;
+    nesting_active = false;
+
+    switch_interrupt_block();
+
+    unsigned int r0, r1, r2, r3, r4, r5, r6, r7;
+
+    __asm__ ("ldc %0, r7_bank" : "=r"(r7));
+    __asm__ ("ldc %0, r6_bank" : "=r"(r6));
+    __asm__ ("ldc %0, r5_bank" : "=r"(r5));
+    __asm__ ("ldc %0, r4_bank" : "=r"(r4));
+    __asm__ ("ldc %0, r3_bank" : "=r"(r3));
+    __asm__ ("ldc %0, r2_bank" : "=r"(r2));
+    __asm__ ("ldc %0, r1_bank" : "=r"(r1));
+    __asm__ ("ldc %0, r0_bank" : "=r"(r0));
+
+    registers.banked[1][7] = r7;
+    registers.banked[1][6] = r6;
+    registers.banked[1][5] = r5;
+    registers.banked[1][4] = r4;
+    registers.banked[1][3] = r3;
+    registers.banked[1][2] = r2;
+    registers.banked[1][1] = r1;
+    registers.banked[1][0] = r0;
+}
