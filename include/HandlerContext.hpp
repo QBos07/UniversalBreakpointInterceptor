@@ -232,6 +232,8 @@ namespace UBI {
             registers.unbanked[7]
         };
 
+        void writeBankedRegisters() const noexcept;
+        void readBankedRegisters() noexcept;
         void allowNestedInterrupts() noexcept;
         void disallowNestedInterrupts() noexcept;
     };

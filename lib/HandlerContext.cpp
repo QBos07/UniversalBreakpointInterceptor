@@ -78,10 +78,7 @@ void HandlerContext::writeBack(saved_regs &saved_regs) const noexcept {
     };
 }
 
-void HandlerContext::allowNestedInterrupts() noexcept {
-    if (nesting_active) return;
-    nesting_active = true;
-
+void HandlerContext::writeBankedRegisters() const noexcept {
     __asm__ volatile ("ldc %0, r7_bank" : : "r"(registers.banked[1][7].asCopy<unsigned int>()));
     __asm__ volatile ("ldc %0, r6_bank" : : "r"(registers.banked[1][6].asCopy<unsigned int>()));
     __asm__ volatile ("ldc %0, r5_bank" : : "r"(registers.banked[1][5].asCopy<unsigned int>()));
@@ -90,16 +87,9 @@ void HandlerContext::allowNestedInterrupts() noexcept {
     __asm__ volatile ("ldc %0, r2_bank" : : "r"(registers.banked[1][2].asCopy<unsigned int>()));
     __asm__ volatile ("ldc %0, r1_bank" : : "r"(registers.banked[1][1].asCopy<unsigned int>()));
     __asm__ volatile ("ldc %0, r0_bank" : : "r"(registers.banked[1][0].asCopy<unsigned int>()));
-
-    switch_interrupt_block();
 }
 
-void HandlerContext::disallowNestedInterrupts() noexcept {
-    if (!nesting_active) return;
-    nesting_active = false;
-
-    switch_interrupt_block();
-
+void HandlerContext::readBankedRegisters() noexcept {
     unsigned int r0, r1, r2, r3, r4, r5, r6, r7;
 
     __asm__ ("ldc %0, r7_bank" : "=r"(r7));
@@ -119,4 +109,22 @@ void HandlerContext::disallowNestedInterrupts() noexcept {
     registers.banked[1][2] = r2;
     registers.banked[1][1] = r1;
     registers.banked[1][0] = r0;
+}
+
+void HandlerContext::allowNestedInterrupts() noexcept {
+    if (nesting_active) return;
+    nesting_active = true;
+
+    writeBankedRegisters();
+
+    switch_interrupt_block();
+}
+
+void HandlerContext::disallowNestedInterrupts() noexcept {
+    if (!nesting_active) return;
+    nesting_active = false;
+
+    switch_interrupt_block();
+
+    readBankedRegisters();
 }
